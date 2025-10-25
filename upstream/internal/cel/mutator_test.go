@@ -44,6 +44,7 @@ const (
 		) : []`
 
 	oldStylePlatformsExpression = `has(pipelineRun.spec.pipelineSpec) &&
+		has(pipelineRun.spec.pipelineSpec.tasks) &&
 		pipelineRun.spec.pipelineSpec.tasks.size() > 0 ?
 		pipelineRun.spec.pipelineSpec.tasks.map(
 		  task,
@@ -481,6 +482,19 @@ func TestCELMutator_Mutate(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "config.yaml old-style platforms expression - with pipeline spec without tasks",
+			expressions: []string{
+				oldStylePlatformsExpression,
+			},
+			initialLabels:       nil,
+			initialAnnotations:  nil,
+			initialParams:       nil,
+			pipelineSpec:        &tekv1.PipelineSpec{},
+			expectedLabels:      nil,
+			expectedAnnotations: nil,
+			expectErr:           false,
+		},
+		{
 			name: "config.yaml old-style platforms expression - no pipeline spec",
 			expressions: []string{
 				oldStylePlatformsExpression,
@@ -790,6 +804,7 @@ func TestCELMutator_Mutate(t *testing.T) {
 
 			// Add pipeline spec if provided
 			if tt.pipelineSpec != nil {
+				pipelineRun.Spec.PipelineRef = nil
 				pipelineRun.Spec.PipelineSpec = tt.pipelineSpec
 			}
 
