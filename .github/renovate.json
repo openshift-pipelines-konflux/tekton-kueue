@@ -3,7 +3,7 @@
   "extends": [
     "github>konflux-ci/mintmaker//config/renovate/renovate.json"
   ],
-  "branchPrefix": "konflux/osp-mintmaker/",
+  "branchPrefix": "osp-mintmaker/",
   "enabledManagers": [
     "tekton",
     "dockerfile",
@@ -18,9 +18,8 @@
   "autoApprove": true,
   "packageRules": [
     {
-      "description": "Automerge non-major updates",
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
-      "automerge": true
+      "matchPackageNames": ["*"],
+      "automerge": false
     }
   ]
 }
