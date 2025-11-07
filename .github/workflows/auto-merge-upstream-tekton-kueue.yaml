@@ -1,4 +1,4 @@
-# Generated for Konflux Application openshift-pipelines-core by openshift-pipelines/hack. DO NOT EDIT
+# Generated for Konflux Application openshift-pipelines-upstream by openshift-pipelines/hack. DO NOT EDIT
 name: auto-merge-upstream-tekton-kueue
 
 on:

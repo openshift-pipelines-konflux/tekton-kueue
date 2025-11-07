@@ -1,4 +1,4 @@
-# Generated for Konflux Application openshift-pipelines-core by openshift-pipelines/hack. DO NOT EDIT
+# Generated for Konflux Application openshift-pipelines-upstream by openshift-pipelines/hack. DO NOT EDIT
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
@@ -16,7 +16,7 @@ metadata:
       ".tekton/tekton-kueue-main-kueue-push.yaml".pathChanged())
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: openshift-pipelines-core-main
+    appstudio.openshift.io/application: openshift-pipelines-upstream-main
     appstudio.openshift.io/component: tekton-kueue-main-kueue
     pipelines.appstudio.openshift.io/type: build
   name: tekton-kueue-main-kueue-on-push
