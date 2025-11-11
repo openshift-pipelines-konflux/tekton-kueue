@@ -1,4 +1,4 @@
-# Generated for Konflux by openshift-pipelines/hack. DO NOT EDIT
+# Generated for Konflux Application openshift-pipelines-core by openshift-pipelines/hack. DO NOT EDIT
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
@@ -11,8 +11,8 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
       == "release-v1.22.x" &&
-      ("upstream/***".pathChanged() || ".konflux/patches/***".pathChanged() || ".konflux/rpms/***".pathChanged() ||
-      ".konflux/dockerfiles/kueue.Dockerfile".pathChanged() ||
+      ("***".pathChanged() ||
+      "Dockerfile".pathChanged() ||
       ".tekton/tekton-kueue-1-22-kueue-push.yaml".pathChanged())
   creationTimestamp: null
   labels:
@@ -28,17 +28,17 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/tekton-ecosystem-tenant/tekton-kueue-rhel9:{{revision}}
+    value: quay.io/redhat-user-workloads/tekton-ecosystem-tenant/kueue-rhel9:{{revision}}
   - name: dockerfile
-    value: .konflux/dockerfiles/kueue.Dockerfile
+    value: Dockerfile
   - name: prefetch-input
     value: |
-      {"type": "gomod", "path": "upstream"}
+      {"type": "gomod", "path": "."}
 
   pipelineRef:
     name: docker-build-ta
   taskRunTemplate:
-    serviceAccountName: build-pipeline-tekton-kueue-1-22-kueue
+    serviceAccountName: build-pipeline-tekton-kueue-kueue-1-22
   workspaces:
   - name: git-auth
     secret:
