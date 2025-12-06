@@ -1,6 +1,8 @@
 # Image URL to use all building/pushing image targets
 IMG ?= tekton-kueue:latest
 KIND_CLUSTER ?= kind
+RELEASE_DIR ?= release
+VERSION ?= nightly
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -134,6 +136,13 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
+
+.PHONY: release
+release: kustomize
+	mkdir -p ${RELEASE_DIR}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/webhook && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default -o ${RELEASE_DIR}/release-${VERSION}.yaml
 
 ##@ Deployment
 

@@ -21,8 +21,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-logr/logr"
+	"github.com/konflux-ci/tekton-queue/internal/common"
+	"github.com/konflux-ci/tekton-queue/internal/config"
 	tekv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -34,7 +41,36 @@ const QueueLabel = "kueue.x-k8s.io/queue-name"
 func SetupPipelineRunWebhookWithManager(mgr ctrl.Manager, defaulter admission.CustomDefaulter) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&tekv1.PipelineRun{}).
 		WithDefaulter(defaulter).
+		WithLogConstructor(logConstructor).
 		Complete()
+}
+
+func logConstructor(base logr.Logger, req *admission.Request) logr.Logger {
+	gvk := (&tekv1.PipelineRun{}).GetGroupVersionKind()
+	log := base.WithValues(
+		"webhookGroup", gvk.Group,
+		"webhookKind", gvk.Kind,
+	)
+	if req != nil {
+		log = log.WithValues(
+			"webhookGroup", tekv1.SchemeGroupVersion.Group,
+			"webhookKind", gvk.Kind,
+			gvk.Kind, klog.KRef(req.Namespace, req.Name),
+			"namespace", req.Namespace,
+			"name", req.Name,
+			"resource", req.Resource,
+			"user", req.UserInfo.Username,
+			"requestID", req.UID,
+		)
+
+		if a, err := meta.Accessor(req.Object); err == nil {
+			if a.GetName() == "" {
+				// add the generate name only if the name is unset
+				return log.WithValues("generateName", a.GetGenerateName())
+			}
+		}
+	}
+	return log
 }
 
 type PipelineRunMutator interface {
@@ -51,14 +87,15 @@ type PipelineRunMutator interface {
 // NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
 // as it is used only for temporary operations and does not need to be deeply copied.
 type pipelineRunCustomDefaulter struct {
-	QueueName string
-	mutators  []PipelineRunMutator
+	config   *config.Config
+	mutators []PipelineRunMutator
 }
 
-func NewCustomDefaulter(queueName string, mutators []PipelineRunMutator) (webhook.CustomDefaulter, error) {
+func NewCustomDefaulter(cfg *config.Config, mutators []PipelineRunMutator) (webhook.CustomDefaulter, error) {
+
 	defaulter := &pipelineRunCustomDefaulter{
-		queueName,
-		mutators,
+		config:   cfg,
+		mutators: mutators,
 	}
 	if err := defaulter.Validate(); err != nil {
 		return nil, err
@@ -71,16 +108,28 @@ func (d *pipelineRunCustomDefaulter) Default(ctx context.Context, obj runtime.Ob
 	plr, ok := obj.(*tekv1.PipelineRun)
 
 	if !ok {
-		return fmt.Errorf("expected an PipelineRun object but got %T", obj)
+		return k8serrors.NewBadRequest(fmt.Sprintf("expected an PipelineRun object but got %T", obj))
 	}
+
+	// Attempt to catch bad pipelineruns prior to processing so we can catch
+	// errors ourselves and handle them appropriately.  Only validate the spec
+	// field, since we might be getting a pipelinerun with a generated name, which
+	// the top-level Validate() method will reject
+	err := plr.Spec.Validate(ctx)
+	if err != nil {
+		return k8serrors.NewBadRequest(err.Error())
+	}
+
 	plr.Spec.Status = tekv1.PipelineRunSpecStatusPending
 	if plr.Labels == nil {
 		plr.Labels = make(map[string]string)
 	}
-	if _, exists := plr.Labels[QueueLabel]; !exists {
-		plr.Labels[QueueLabel] = d.QueueName
+	if _, exists := plr.Labels[common.QueueLabel]; !exists {
+		plr.Labels[common.QueueLabel] = d.config.QueueName
 	}
-
+	if d.config.MultiKueueOverride {
+		plr.Spec.ManagedBy = ptr.To(common.ManagedByMultiKueueLabel)
+	}
 	for _, mutator := range d.mutators {
 		if err := mutator.Mutate(plr); err != nil {
 			return err
@@ -91,7 +140,7 @@ func (d *pipelineRunCustomDefaulter) Default(ctx context.Context, obj runtime.Ob
 }
 
 func (d *pipelineRunCustomDefaulter) Validate() error {
-	if d.QueueName == "" {
+	if d.config.QueueName == "" {
 		return errors.New("queue name is not set in the PipelineRunCustomDefaulter")
 	}
 	return nil
