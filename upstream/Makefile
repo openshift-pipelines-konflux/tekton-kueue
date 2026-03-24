@@ -1,6 +1,8 @@
 # Image URL to use all building/pushing image targets
 IMG ?= tekton-kueue:latest
 KIND_CLUSTER ?= kind
+RELEASE_DIR ?= release
+VERSION ?= nightly
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -135,6 +137,13 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+.PHONY: release
+release: kustomize
+	mkdir -p ${RELEASE_DIR}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/webhook && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default -o ${RELEASE_DIR}/release-${VERSION}.yaml
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -182,10 +191,10 @@ CONTROLLER_TOOLS_VERSION ?= v0.17.1
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
-GOLANGCI_LINT_VERSION ?= v2.1.6
+GOLANGCI_LINT_VERSION ?= v2.7.2
 KUEUE_VERSION ?= $(shell ./hack/get-kueue-version.sh)
 TEKTON_VERSION ?= v0.70.0
-CERT_MANAGER_VERSION ?= v1.16.3
+CERT_MANAGER_VERSION ?= v1.19.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -256,3 +265,9 @@ load-image: docker-build
 	$(CONTAINER_TOOL) save $(IMG) -o $${dir}/tekton-kueue.tar && \
 	kind load image-archive -n $(KIND_CLUSTER) $${dir}/tekton-kueue.tar && \
 	rm -r $${dir}
+
+# Apply tekton config  with all its dependencies.
+.PHONY: apply
+apply: docker-build docker-push release
+	$(KUBECTL) apply --server-side -f ${RELEASE_DIR}/release-${VERSION}.yaml
+	$(KUBECTL) wait --for=condition=Available deployment --all -n tekton-kueue --timeout=300s
