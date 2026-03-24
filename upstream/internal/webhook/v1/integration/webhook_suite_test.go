@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package integration
 
 import (
 	"context"
@@ -40,6 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	v1 "github.com/konflux-ci/tekton-kueue/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -112,8 +114,16 @@ var _ = BeforeSuite(func() {
 		Metrics:        metricsserver.Options{BindAddress: "0"},
 	})
 	Expect(err).NotTo(HaveOccurred())
+	cfgStore := &v1.ConfigStore{}
+	rawConfig := "queueName: pipelines-queue"
 
-	err = SetupPipelineRunWebhookWithManager(mgr, &pipelineRunCustomDefaulter{QueueName: "pipelines-queue"})
+	err = cfgStore.Update([]byte(rawConfig))
+	Expect(err).NotTo(HaveOccurred())
+
+	defaulter, err := v1.NewCustomDefaulter(cfgStore)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = v1.SetupPipelineRunWebhookWithManager(mgr, defaulter)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:webhook

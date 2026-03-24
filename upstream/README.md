@@ -117,6 +117,27 @@ kubectl get -n tekton-kueue-test workloads
 If You'll try to create several PipelineRuns at one, you would see that some
 of them get queued because the [ClusterQueue] resource reaches its resource limit.
 
+### Usage with MultiKueue
+
+In a [MultiKueue] setup, `tekton-kueue` should be deployed on the manager/hub cluster with MultiKueue Override set.
+
+When running in this mode, the admission webhook will automatically set the `spec.managedBy` field to `kueue.x-k8s.io/multikueue` for all `PipelineRuns`. This field signals to the `tekton-kueue` controller that the `PipelineRun` is being managed by `MultiKueue`. This allows the `MultiKueue` controller to manage the `PipelineRun`'s lifecycle.
+
+To enable this mode, you must create a `ConfigMap` with the `multiKueueOverride` field set to `true`.
+
+Create a `ConfigMap` named `tekton-kueue-config` in the same namespace as the controller:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tekton-kueue-config
+  namespace: tekton-kueue-system
+data:
+  config.yaml: |
+    multiKueueOverride: true
+```
+The controller will automatically load the configuration from this `ConfigMap`.
+
 ## Command Line Interface
 
 The `tekton-kueue` binary provides several subcommands:

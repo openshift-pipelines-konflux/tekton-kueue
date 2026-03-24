@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM registry.access.redhat.com/ubi9/go-toolset@sha256:7b1828de52c3bac600a71b81996bf748776a456181a45e2b329b39702cf6486f AS builder
+FROM registry.access.redhat.com/ubi9/go-toolset:1.25.7-1773851748@sha256:8c5d30cb3c2b44165c332131444c534d259094be7715ac3ead2409f9fb0dbb6d AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -15,6 +15,7 @@ RUN go mod download
 # Copy the go source
 COPY cmd/main.go cmd/main.go
 COPY internal/ internal/
+COPY pkg/ pkg/
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
@@ -24,7 +25,7 @@ COPY internal/ internal/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
 
 
-FROM registry.access.redhat.com/ubi9-micro@sha256:aff810919642215e15c993b9bbc110dbcc446608730ad24499dafd9df7a8f8f4
+FROM registry.access.redhat.com/ubi9-micro@sha256:2173487b3b72b1a7b11edc908e9bbf1726f9df46a4f78fd6d19a2bab0a701f38
 WORKDIR /
 COPY --from=builder /opt/app-root/src/manager .
 COPY LICENSE /licenses/
